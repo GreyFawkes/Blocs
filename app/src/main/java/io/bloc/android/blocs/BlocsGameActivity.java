@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Stack;
 
-public class Blocs_Activity extends SimpleBaseGameActivity{
+public class BlocsGameActivity extends SimpleBaseGameActivity{
 
     private static final int CAMERA_HEIGHT = 480;
     private static final int CAMERA_WIDTH = 800;

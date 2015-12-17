@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Blocs</string>
+    <string name="tv_menu_game_name">Blocs</string>
+    <string name="btn_menu_game_start">Play Game</string>
 </resources>
