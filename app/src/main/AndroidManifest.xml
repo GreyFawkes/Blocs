@@ -20,7 +20,9 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".BlocsGameActivity">
+        <activity
+            android:name=".BlocsGameActivity"
+            android:configChanges="orientation|screenSize">
 
         </activity>
 
