@@ -15,14 +15,14 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="200dp"
+        android:layout_marginTop="@dimen/topMargin_bloc_menu_title"
         android:text="@string/tv_menu_game_name"/>
 
     <Button
         android:id="@+id/btn_start_game"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="50dp"
+        android:layout_marginTop="@dimen/topMargin_bloc_menu_playGame"
         android:layout_centerHorizontal="true"
         android:layout_below="@+id/tv_game_title"
         android:text="@string/btn_menu_game_start"/>
