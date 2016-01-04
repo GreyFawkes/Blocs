@@ -1,5 +1,13 @@
 package io.bloc.android.blocs;
 
+import android.hardware.SensorManager;
+import android.util.Log;
+
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.physics.box2d.BodyDef;
+import com.badlogic.gdx.physics.box2d.FixtureDef;
+
 import org.andengine.engine.camera.Camera;
 import org.andengine.engine.options.EngineOptions;
 import org.andengine.engine.options.ScreenOrientation;
@@ -7,6 +15,11 @@ import org.andengine.engine.options.resolutionpolicy.RatioResolutionPolicy;
 import org.andengine.entity.scene.Scene;
 import org.andengine.entity.scene.background.Background;
 import org.andengine.entity.util.FPSLogger;
+import org.andengine.extension.physics.box2d.PhysicsConnector;
+import org.andengine.extension.physics.box2d.PhysicsFactory;
+import org.andengine.extension.physics.box2d.PhysicsWorld;
+import org.andengine.input.sensor.acceleration.AccelerationData;
+import org.andengine.input.sensor.acceleration.IAccelerationListener;
 import org.andengine.opengl.texture.ITexture;
 import org.andengine.opengl.texture.bitmap.BitmapTexture;
 import org.andengine.opengl.texture.region.ITextureRegion;
@@ -19,11 +32,11 @@ import org.andengine.util.debug.Debug;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class BlocsGameActivity extends SimpleBaseGameActivity{
+public class BlocsGameActivity extends SimpleBaseGameActivity implements IAccelerationListener {
 
 
     // ============ Constants ============
-    private static final int CAMERA_WIDTH = 400;
+    private static final int CAMERA_WIDTH = 700;
     private static final int CAMERA_HEIGHT = 400;
 
     // ============ field variables =================
@@ -36,16 +49,27 @@ public class BlocsGameActivity extends SimpleBaseGameActivity{
 
         //make a square/rectangular mazeMap
     private int[][] mazeMap = {
-                    {1,1,1,1,1,1},
-                    {1,1,0,0,1,1},
-                    {1,0,0,0,0,1},
-                    {1,0,0,9,0,1},
-                    {1,0,1,1,0,1},
-                    {1,1,1,1,1,1}
+                    {1,1,1,1,1,1,1,1,1,1,1},
+                    {1,1,0,0,0,0,0,0,1,0,1},
+                    {1,0,0,0,0,1,1,0,1,0,1},
+                    {1,0,0,9,0,1,1,0,0,0,1},
+                    {1,0,1,1,0,0,0,0,0,0,1},
+                    {1,1,1,1,1,1,1,1,1,1,1}
     };
 
     private Avatar mPlayerAvatar = null;
+    private PhysicsWorld mPhysicsWorld;
 
+    private FixtureDef wallFixtureDefaultDef = PhysicsFactory.createFixtureDef(1,0.5f,0.5f);
+    private FixtureDef avatarFixtureDef = PhysicsFactory.createFixtureDef(0.5f, 0.5f, 0.5f);
+
+    private Body mAvatar;
+
+    private float mXAccel;
+    private float mYAccel;
+
+
+    //// TODO: 12/30/2015 bodies and physics
 
 
     @Override
@@ -90,9 +114,40 @@ public class BlocsGameActivity extends SimpleBaseGameActivity{
     @Override
     protected Scene onCreateScene() {
 
+
+        mPhysicsWorld = new PhysicsWorld(new Vector2(0, 0), false);
+
         Scene scene = createMaze();
 
+        Log.i("Test", "test");
+
+        scene.registerUpdateHandler(mPhysicsWorld);
+
         return scene;
+    }
+
+    @Override
+    public void onAccelerationChanged(AccelerationData pAccelerationData) {
+        setAccel(pAccelerationData.getX(), pAccelerationData.getY());
+        calcAvatarVelocity(.5f);
+
+    }
+
+    @Override
+    public void onAccelerationAccuracyChanged(AccelerationData pAccelerationData) {
+        Log.i("Test", "test2");
+    }
+
+    @Override
+    public synchronized void onResumeGame() {
+        super.onResumeGame();
+        this.enableAccelerationSensor(this);
+    }
+
+    @Override
+    public synchronized void onPauseGame() {
+        super.onPauseGame();
+        this.disableAccelerationSensor();
     }
 
     private Scene createMaze() {
@@ -124,6 +179,14 @@ public class BlocsGameActivity extends SimpleBaseGameActivity{
             //set the background color
         scene.setBackground(new Background(Color.CYAN));
 
+
+//        mPlayerAvatar = makeAvatar(200, 200);
+//        mPlayerAvatar.setSize(spriteLength/2, spriteHeight/2);
+////
+//
+//        scene.attachChild(mPlayerAvatar);
+
+
             //place mazeMap sprites based on mazeMap array
         for(int i = mapHeight-1 ; i >= 0; i--) {
             for(int j  = 0; j < mapLength; j++) {
@@ -132,11 +195,13 @@ public class BlocsGameActivity extends SimpleBaseGameActivity{
                     mPlayerAvatar = makeAvatar(spriteLengthOffset + (j * spriteLength),
                             spriteHeightOffset + (((mapHeight - 1) - i) * spriteHeight));
                     mPlayerAvatar.setSize(spriteLength/2, spriteHeight/2);
-                    mPlayerAvatar.setAvatarVelocity(1f,1f);
+
+                    mAvatar = PhysicsFactory.createCircleBody(mPhysicsWorld, mPlayerAvatar, BodyDef.BodyType.DynamicBody, avatarFixtureDef);
+                    mPhysicsWorld.registerPhysicsConnector(new PhysicsConnector(mPlayerAvatar, mAvatar, true, true));
                     scene.attachChild(mPlayerAvatar);
                 } else {
 
-                    Block block = getBlock(
+                    BlocSprite block = getBlocSprite(
                             map[i][j],
                             spriteLengthOffset + (j * spriteLength),
                             spriteHeightOffset + (((mapHeight - 1) - i) * spriteHeight),
@@ -154,8 +219,8 @@ public class BlocsGameActivity extends SimpleBaseGameActivity{
         return scene;
     }
 
-    private Block getBlock(int spriteId, float spritePX, float spritePY, float spriteLength, float spriteHeight) {
-        Block sprite = null;
+    private BlocSprite getBlocSprite(int spriteId, float spritePX, float spritePY, float spriteLength, float spriteHeight) {
+        BlocSprite sprite = null;
         if(spriteId == 9) return null;
 
         switch (spriteId) {
@@ -163,13 +228,13 @@ public class BlocsGameActivity extends SimpleBaseGameActivity{
                 break;
 
             case 1:
-                sprite = new Block(spriteId, spritePX, spritePY, mGreenBlock, getVertexBufferObjectManager() ) {
-                    @Override
-                    void onOverlap(Avatar overlappingAvatar) {
-                        //null
-                    }
-                };
+                sprite = new BlocSprite(spriteId, spritePX, spritePY, mGreenBlock, getVertexBufferObjectManager());
                 sprite.setSize(spriteLength, spriteHeight);
+
+                    //create a body for the wall
+                Body wallBody = PhysicsFactory.createBoxBody(mPhysicsWorld, sprite, BodyDef.BodyType.KinematicBody, wallFixtureDefaultDef);
+                wallBody.setUserData("wall");
+
                 return sprite;
 
             default:
@@ -186,56 +251,23 @@ public class BlocsGameActivity extends SimpleBaseGameActivity{
 
     }
 
-    private void updateScene() {
-        //get mazeMap
-        int[][] map = mazeMap;
+    private void setAccel(float xAccel, float yAccel) {
+        mXAccel = xAccel;
+        mYAccel = yAccel;
+    }
 
-        //get the dimensions of the map
-        int mapHeight = map.length;
-        int mapLength = map[0].length;
+    private void calcAvatarVelocity(float accelerationMultiplier) {
 
-        //get the screen height and length
-        float screenLength = CAMERA_WIDTH;
-        float screenHeight = CAMERA_HEIGHT;
+        //relative accelerations for the avatar in game
+        float relativeXAccel = (mXAccel/SensorManager.GRAVITY_EARTH)*accelerationMultiplier;
+        float relativeYAccel = (mYAccel/SensorManager.GRAVITY_EARTH)*accelerationMultiplier;
 
-        //divide the screen into equal parts for the mazeMap sprites
-        float spriteHeight = screenHeight/mapHeight;
-        float spriteLength = screenLength/mapLength;
+        float newXVelocity = mAvatar.getLinearVelocity().x + relativeXAccel;
+        float newYVelocity = mAvatar.getLinearVelocity().y + relativeYAccel;
 
-        //assign sprite placement offset
-        float spriteHeightOffset = spriteLength/2;
-        float spriteLengthOffset = spriteHeight/2;
+        //mPlayerAvatar.setAvatarVelocity(newXVelocity, newYVelocity);
+        mAvatar.setLinearVelocity(newXVelocity, newYVelocity);
 
-        //create a new scene for the map
-        Scene scene = new Scene();
-
-        //set the background color
-        scene.setBackground(new Background(Color.CYAN));
-
-        //place mazeMap sprites based on mazeMap array
-        for(int i = mapHeight-1 ; i >= 0; i--) {
-            for(int j  = 0; j < mapLength; j++) {
-
-                Block block = getBlock(
-                        map[i][j],
-                        spriteLengthOffset + (j * spriteLength),
-                        spriteHeightOffset + (((mapHeight - 1) - i) * spriteHeight),
-                        spriteLength,
-                        spriteHeight);
-
-                if (block != null) {
-                    scene.attachChild(block);
-                }
-
-
-            }
-        }
-
-        mPlayerAvatar.setPosition(
-                mPlayerAvatar.getX() + mPlayerAvatar.getXVelocity(),
-                mPlayerAvatar.getY() + mPlayerAvatar.getYVelocity());
-
-        scene.attachChild(mPlayerAvatar);
     }
 
 }
